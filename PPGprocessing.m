@@ -13,8 +13,6 @@ filename = 'Paciente2';
 signals = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename 'LH.gzip']);
 referencia = struct2table(load('C:\Users\Pablo\Desktop\Calculos\Referencia.mat'));
 
-%copy = signals(:,1:4);
-
 %Limpiamos puntos incoherentes (80<SPO2<100)
 for i=1:length(referencia.ans)
     if (referencia.ans(i)> 100)
@@ -64,9 +62,11 @@ for i=1:length(fs)
         GC = resample(double(g),ffin*100,fix(round(fi*100,2)));
         RC = resample(double(r),ffin*100,fix(round(fi*100,2)));
         IC = resample(double(ir),ffin*100,fix(round(fi*100,2)));
-        t = ((huecos(i-1)+1)/fo):1/fo:(huecos(i-1)+length(GC))/256;
+        t = ((huecos(i-1)+1)/fo):1/fo:(huecos(i-1)+length(GC))/fo;
 
         resampled{end+1}=table(t',GC,RC,IC, 'VariableNames', {'Time', 'GC', 'RC', 'IC'});
+        
+        %resampled = [resampled ; table(t',GC,RC,IC, 'VariableNames', {'Time', 'GC', 'RC', 'IC'})]
         
         %figure
         %hold on
@@ -80,13 +80,12 @@ for i=1:length(fs)
     end
 end
 
-remuestreado =  resampled{1}; %Los intervalos a analizar se encuentran en
+remuestreado =  resampled{1}; %Los intervalos a analizar se encuentran en 1
 %segundos= 1:1:length(referencia.ans); %Referencia sin decimales
 
-clear g r ir fi ffin i GC RC IC t fs huecos %Borramos las variable que no vamos a usar mas adelante
-
+%Borramos las variable que no vamos a usar mas adelante
+clear g r ir fi ffin i GC RC IC t fs huecos 
 %% preprocesado: filtrado y deteccion de artefactos
-
 % signal filtering -- Declaramos la pared para filtrar el ruido (Frecuencia Corte) 
 ord = 4;
 fc = [0.1 15]./(fo/2);
@@ -112,22 +111,27 @@ PPGRed        =   nanfiltfilt( sos , filterGain , -remuestreado.RC(:) , Setup );
 % los maximos y los minimos en la señal filtrada
 Setup.plotflag = false;
 
-%instantes de tiempo de: D->Latido, A->Max, B->Min
+%Instantes de tiempo de: D->Latido, A->Max, B->Min 
+%(partiendo desde el instante de tiempo de medicion inicial)
+%Es decir, que son isntantes desde que inicia la tabla válida
 [ iD , iA , iB ]    =   pulseDelineation ( PPGIR , fo , Setup );
 [ nD , nA , nB ]    =   pulseDelineation ( PPGRed , fo , Setup ); 
 
 %creamos un eje temporal que se ajuste a nuestra señal
 t = 0:1/fo:(length(PPGRed)-1)/fo;
 
-a_iA=iA; a_iB=iB; 
+a_iA=iA; a_iB=iB; %para parte de apnea
 a_nA=nA; a_nB=nB;
 
-n_iA=iA; n_iB=iB; 
+n_iA=iA; n_iB=iB; %para parte noche normal
 n_nA=nA; n_nB=nB;  
 
+%Con tiempos arreglados:
+irA=iA+remuestreado.Time(1); irB=iB+remuestreado.Time(1);
+rA=nA+remuestreado.Time(1); rB=nB+remuestreado.Time(1);
+
 clear k p z sos filterGain
-%% Infrarroja
-%Creamos nuevo filtro para mantener la respiración
+%% Creamos nuevo filtro para mantener la respiración
 fc = 15/(fo/2);
 [z,p,k]         =   cheby2( ord , 20 , fc , 'low' ); 
 [sos,filterGain] = zp2sos(z,p,k);
@@ -143,12 +147,8 @@ plot(t,  FiltroPBajoIR , 'k','LineWidth',1);
 %aproximación usada en round
 plot(iD(~isnan(iD)), FiltroPBajoIR(1+round(iD(~isnan(iD))*fo)), 'ro','LineWidth',1);
 plot(iA(~isnan(iA)), FiltroPBajoIR(1+round(iA(~isnan(iA))*fo)), 'b*','LineWidth',1);
-% plot(nM(~isnan(nM)), remuestreado.RC(1+round(nM(~isnan(nM))*fs)), 'k*','LineWidth',1);
 plot(iB(~isnan(iB)), FiltroPBajoIR(1+round(iB(~isnan(iB))*fo)), 'b*','LineWidth',1);
-%xline(iD,'color',[0.35 0.35 0.35],'LineWidth',0.5,'HandleVisibility','off');
 title('PPGIR');
-%Claculamos la diferencia entre el maximo y el minimo de cada latido:
-%diffMaxMinIR=FiltroPBajoIR(1+round(iA(~isnan(iA))*fo))- FiltroPBajoIR(1+round(iB(~isnan(iB))*fo));
 
 %Roja
 fc = 15/(fo/2);
@@ -165,6 +165,179 @@ plot(nB(~isnan(nB)), FiltroPBajoRoja(1+round(nB(~isnan(nB))*fo)), 'b*','LineWidt
 title('PPGRED');
 
 clear k p z sos filterGain
+
+
+%% Toda la noche (creacion de las tablas)
+noche=table(remuestreado.Time, FiltroPBajoRoja, FiltroPBajoIR,'VariableNames', {'Time', 'Red', 'IR'});
+
+MaxsIr=table(irA, nan(length(iA),1), 'VariableNames', {'Time', 'Value'});
+MinsIr=table(irB, nan(length(iB),1), 'VariableNames', {'Time', 'Value'});
+MaxsR=table(rA, nan(length(nA),1), 'VariableNames', {'Time', 'Value'});
+MinsR=table(rB, nan(length(nB),1), 'VariableNames', {'Time', 'Value'});
+
+find(MaxsIr.Time<=noche.Time(1), 1)
+%clear nA nB iA iB
+
+%% Toda la noche (asignacion de valores a las tablas de tiempos)
+% Falta aunar en una sola tabla las muestras resampleadas
+%Este apartado cuesta un cojon de ejecutar xdddd
+tic
+for i=1:length(MaxsIr.Value)
+    %Maximos de IR
+    idx = find(noche.Time==MaxsIr.Time(i), 1);
+    if isempty(idx) %aproximar al valor correcto más cercano
+        %Optimizacion para la busqueda, sumamos los elementos true del
+        %vector para hayar el indice que buscamos
+        ant=sum(noche.Time<MaxsIr.Time(i));
+        sig=ant+1;
+        if noche.IR(ant)>noche.IR(sig)%
+            MaxsIr.Time(i)=noche.Time(ant);
+            MaxsIr.Value(i)=noche.IR(ant);
+        else
+            MaxsIr.Time(i)=noche.Time(sig);
+            MaxsIr.Value(i)=noche.IR(sig);
+        end
+    else%tenemos valor para el tiempo dado
+        MaxsIr.Value(i)=noche.IR(idx);
+    end
+
+    %Mínimos de IR
+    idx = find(noche.Time==MinsIr.Time(i), 1);
+    if isempty(idx) 
+        ant=sum(noche.Time<MinsIr.Time(i));
+        sig=ant+1;
+        if noche.IR(ant)<noche.IR(sig)
+            MinsIr.Time(i)=noche.Time(ant);
+            MinsIr.Value(i)=noche.IR(ant);
+        else
+            MinsIr.Time(i)=noche.Time(sig);
+            MinsIr.Value(i)=noche.IR(sig);
+        end
+    else
+        MinsIr.Value(i)=noche.IR(idx);
+    end
+end
+toc
+for i=1:length(MaxsR.Value)
+    %Maximos de Red
+    idx = find(noche.Time==MaxsR.Time(i), 1);
+    if isempty(idx)
+        ant=sum(noche.Time<MaxsR.Time(i));
+        sig=ant+1;
+        if noche.Red(ant)>noche.Red(sig)
+            MaxsR.Time(i)=noche.Time(ant);
+            MaxsR.Value(i)=noche.Red(ant);
+        else
+            MaxsR.Time(i)=noche.Time(sig);
+            MaxsR.Value(i)=noche.Red(sig);
+        end
+    else
+        MaxsR.Value(i)=noche.Red(idx);
+    end
+
+    %Mínimos de Red
+    idx = find(noche.Time==MinsR.Time(i), 1);
+    if isempty(idx) 
+        ant=sum(noche.Time<MinsR.Time(i));
+        sig=ant+1;
+        if noche.Red(ant)<noche.Red(sig)
+            MinsR.Time(i)=noche.Time(ant);
+            MinsR.Value(i)=noche.Red(ant);
+        else
+            MinsR.Time(i)=noche.Time(sig);
+            MinsR.Value(i)=noche.Red(sig);
+        end
+    else
+        MinsR.Value(i)=noche.Red(idx);
+    end
+end
+
+
+%% Toda la noche (calculo de R y SPO2)
+
+%Revisar como podriasmos solucionar el tema de los latido totales:
+latidos=min(height(MaxsR),height(MaxsIr));
+%Declaramos por optimización
+red_dc=zeros(latidos-1,1);
+ir_dc=zeros(latidos-1,1);
+red_ac=zeros(latidos-1,1);
+ir_ac=zeros(latidos-1,1);
+aR=zeros(latidos-1,1);
+
+for i=1:latidos-1
+    %Cogemos el minimo de un latido y el siguiente y sacamos la media del
+    %valor de la señal entre esos puntos
+    red_dc(i) = mean(noche.Red(find(noche.Time==MinsR.Time(i)):find(noche.Time==MinsR.Time(i+1))));
+    ir_dc(i) = mean(noche.IR(find(noche.Time==MinsIr.Time(i)):find(noche.Time==MinsIr.Time(i+1))));
+
+    red_ac(i) = ((MaxsR.Value(i)-MinsR.Value(i)+(MaxsR.Value(i+1)-MinsR.Value(i+1))))/2;
+    ir_ac(i) = ((MaxsIr.Value(i)-MinsIr.Value(i)+(MaxsIr.Value(i+1)-MinsIr.Value(i+1))))/2;
+
+    a=(red_ac(i)/red_dc(i));
+    b=(ir_ac(i)/ir_dc(i));
+    c=a/b;
+    aR(i)=c;
+    %j=j+1;
+end
+
+%% Toda la noche (calculo FFT y limpieza de la señal)
+% fourierApn=fft(aR);
+% aL=length(aR);
+% 
+% A2=abs(fourierApn/aL);
+% A1=A2(1:aL/2+1);
+% A1(2:end-1)= 2*A1(2:end-1);
+% fApn=fo/aL*(0:(aL/2));
+
+%En vistas de las graficas nos interesa establecer el corte en 15Hz, ya que
+%es el punto suficientemente alejado como para no perder precisión, pero
+%suficientemente cercano para limpiar bien la señal.
+fc = 20/(fo/2); 
+[z,p,k]         =   cheby2( ord , 20 , fc , 'low' ); 
+[sos,filterGain] = zp2sos(z,p,k);
+aRFilt = nanfiltfilt( sos , filterGain , -aR, Setup );
+
+SPO2=zeros(1,length(aR));
+SPO2Filt= zeros(1,length(aR));
+
+for i=1:length(SPO2)
+    SPO2Filt(i)=(110-aRFilt(i));
+    SPO2(i)=(110-aR(i));
+end
+
+%% Toda la noche (dibujo saturación con apnea)
+%Juntamos tiempo y saturación de una apnea
+inicio_estudio=floor(noche.Time(1));
+fin_estudio=ceil(noche.Time(end));
+referencia_noche=referencia(inicio_estudio:fin_estudio-1,1);
+segundos = inicio_estudio:1:fin_estudio-1;
+segundos=segundos';
+ref_noche=addvars(referencia_noche, segundos);
+
+% figure
+% subplot(2,1,1)
+% hold on
+% plot(MaxsR.Time(1:end-5), red_dc,'DisplayName', 'Red DC'); %* revisar las longitudes
+% plot(MaxsR.Time(1:end-5), red_ac,'DisplayName', 'Red AC'); %*
+% plot(MaxsIr.Time(1:end-1), ir_dc,'DisplayName', 'Infra DC');
+% plot(MaxsIr.Time(1:end-1), ir_ac,'DisplayName', 'Infra AC');
+% title('Grafico apnea con respiración media 2')
+% legend
+ 
+% prueba1=MaxsR.Time+31;
+
+figure
+% subplot(2,1,2)
+hold on
+plot(ref_noche.segundos, ref_noche.ans, 'DisplayName', 'Sat Referencia');
+yyaxis right
+%plot(MaxsIr.Time(1:end-1),SPO2,'DisplayName', 'SPO2');
+%plot(prueba1(1:end-1),SPO2,'DisplayName', 'SPO2');
+%plot(MaxsR.Time(1:end-1),aR+91,'DisplayName', 'R+91');
+% ylim([111 112])
+plot(MaxsIr.Time(1:end-1),-aRFilt,'DisplayName', 'R apnea low-15');
+legend
+
 
 %% Apnea: Obtencion de los instantes temporales donde se producen máximos y minimos en Red e IR
 %Obtenemos un intervalo representativo de apnea
@@ -204,7 +377,7 @@ MaxsIr=table(a_iA, Value, 'VariableNames', {'Time', 'Value'});
 MinsIr=table(a_iB, Value, 'VariableNames', {'Time', 'Value'});
 MaxsR=table(a_nA, Value, 'VariableNames', {'Time', 'Value'});
 MinsR=table(a_nB, Value, 'VariableNames', {'Time', 'Value'});
-clear Value a_nA a_nB a_iA a_iB
+%clear Value a_nA a_nB a_iA a_iB
 
 %% Asignacion correcta del valor de la onda en los valores de tiempo dados 
 for i=1:latidos
@@ -298,7 +471,7 @@ end
 SPO2=zeros(1,length(aR));
 for i=1:length(SPO2)
     %SPO2(i)=(110-25*aR(i));
-    SPO2(i)=(110-25*aRFilt(i));
+    SPO2(i)=(110-aRFilt(i));
 end
 
 %% Dibujo saturación con apnea:
@@ -311,21 +484,26 @@ segundos_apnea=segundos_apnea';
 r_apnea=addvars(referencia_apnea, segundos_apnea);
 
 figure
-subplot(2,1,1)
-hold on
-plot(MaxsR.Time(1:end-1), red_dc(:),'DisplayName', 'Red DC');
-plot(MaxsR.Time(1:end-1), red_ac,'DisplayName', 'Red AC');
-plot(MaxsR.Time(1:end-1), ir_dc,'DisplayName', 'Infra DC');
-plot(MaxsR.Time(1:end-1), ir_ac,'DisplayName', 'Infra AC');
-title('Grafico apnea con respiración media 2')
-legend
-
-subplot(2,1,2)
+% subplot(2,1,1)
+% hold on
+% plot(MaxsR.Time(1:end-1), red_dc(:),'DisplayName', 'Red DC');
+% plot(MaxsR.Time(1:end-1), red_ac,'DisplayName', 'Red AC');
+% plot(MaxsR.Time(1:end-1), ir_dc,'DisplayName', 'Infra DC');
+% plot(MaxsR.Time(1:end-1), ir_ac,'DisplayName', 'Infra AC');
+% title('Grafico apnea con respiración media 2')
+% legend
+% 
+% prueba1=MaxsR.Time+31;
+% 
+% subplot(2,1,2)
 hold on
 plot(r_apnea.segundos_apnea, r_apnea.ans, 'DisplayName', 'Sat Referencia');
-plot(MaxsR.Time(1:end-1),SPO2-60,'DisplayName', 'SPO2');
+%plot(MaxsR.Time(1:end-1),SPO2-60,'DisplayName', 'SPO2');
+yyaxis right
+plot(prueba1(1:end-1),SPO2,'DisplayName', 'SPO2');
 %plot(MaxsR.Time(1:end-1),aR+91,'DisplayName', 'R+91');
-plot(MaxsR.Time(1:end-1),aRFilt+90,'DisplayName', 'R apnea low-15');
+ylim([111 112])
+% plot(MaxsR.Time(1:end-1),aRFilt+90,'DisplayName', 'R apnea low-15');
 legend
 
 %% Intervalo de sueño normal
@@ -460,8 +638,8 @@ end
 
 SPO2=zeros(1,length(nR));
 for i=1:length(SPO2)
-    %SPO2(i)=(110-25*nR(i));
-    SPO2(i)=(110-25*nRFilt(i));
+    %SPO2(i)=(110-25*nR(i)); 
+    SPO2(i)=(110-nRFilt(i));
 end
 
 %% Dibujo saturación normal:
@@ -474,25 +652,29 @@ segundos_normal=segundos_normal';
 r_norm=addvars(referencia_normal, segundos_normal);
 
 figure
-subplot(2,1,1)
-hold on
-plot(MaxsR.Time(1:end-1), red_dc(:),'DisplayName', 'Red DC');
-plot(MaxsR.Time(1:end-1), red_ac,'DisplayName', 'Red AC');
-plot(MaxsR.Time(1:end-1), ir_dc,'DisplayName', 'Infra DC');
-plot(MaxsR.Time(1:end-1), ir_ac,'DisplayName', 'Infra AC');
-title('Grafico normal con respiración media 2')
-legend
-
-subplot(2,1,2)
+% subplot(2,1,1)
+% hold on
+% plot(MaxsR.Time(1:end-1), red_dc(:),'DisplayName', 'Red DC');
+% plot(MaxsR.Time(1:end-1), red_ac,'DisplayName', 'Red AC');
+% plot(MaxsR.Time(1:end-1), ir_dc,'DisplayName', 'Infra DC');
+% plot(MaxsR.Time(1:end-1), ir_ac,'DisplayName', 'Infra AC');
+% title('Grafico normal con respiración media 2')
+% legend
+prueba2=MaxsR.Time+30;
+% subplot(2,1,2)
 hold on
 plot(r_norm.segundos_normal, r_norm.ans, 'DisplayName', 'Sat Referencia');
-plot(MaxsR.Time(1:end-1),SPO2-53,'DisplayName', 'SPO2');
+yyaxis right
+plot(MaxsR.Time(1:end-1),SPO2,'DisplayName', 'SPO2');
+
 %plot(MaxsR.Time(1:end-1),nR+91,'DisplayName', 'R+91');
-plot(MaxsR.Time(1:end-1),nRFilt+91,'DisplayName', 'R normal low-15');
+%plot(MaxsR.Time(1:end-1),nRFilt+91,'DisplayName', 'R normal low-15');
+ylim([111 112])
+%xlim([110 112])
 legend
 
 %% Limpiamos variables
-clear a b c ant fc sig i latidos 
+clear a b c ant fc sig i %latidos 
 %% Plot FFT red normal 
 %Separar el codigo y meterlo cada cacho en su sección (El de la apnea a la
 %apnea y el normal al normal, para que no haya fallos a la hora de
@@ -513,22 +695,22 @@ N1(2:end-1)= 2*N1(2:end-1);
 fApn=fo/aL*(0:(aL/2));
 fNorm=fo/nL*(0:(nL/2));
 
-figure;
-subplot(2,1,1)
-hold on
-%Nos cargamos la componente constante en f=0
-plot(fApn(2:end),A1(2:end),'DisplayName', ' R durante apnea');
-xlabel("f (Hz)")
-ylabel("|fft(R apnea)|")
-legend
-
-subplot(2,1,2)
-%Nos cargamos la componente constante en f=0
-plot(fNorm(2:end),N1(2:end),'DisplayName', 'R tramo normal');
-ylim([0,0.08])
-xlabel("f (Hz)")
-ylabel("|fft(R normal)|")
-legend
+% figure;
+% subplot(2,1,1)
+% hold on
+% %Nos cargamos la componente constante en f=0
+% plot(fApn(2:end),A1(2:end),'DisplayName', ' R durante apnea');
+% xlabel("f (Hz)")
+% ylabel("|fft(R apnea)|")
+% legend
+% 
+% subplot(2,1,2)
+% %Nos cargamos la componente constante en f=0
+% plot(fNorm(2:end),N1(2:end),'DisplayName', 'R tramo normal');
+% ylim([0,0.08])
+% xlabel("f (Hz)")
+% ylabel("|fft(R normal)|")
+%legend
 
 %En vistas de las graficas nos interesa establecer el corte en 15Hz, ya que
 %es el punto suficientemente alejado como para no perder precisión, pero
@@ -540,9 +722,17 @@ aRFilt = nanfiltfilt( sos , filterGain , -aR, Setup );
 nRFilt = nanfiltfilt( sos , filterGain , -nR, Setup );
 
 
+%% Mostramos las dos graficas en bonito:
+figure;
 
-
-
+subplot(2,1,1);
+hold on
+plot(r_apnea.segundos_apnea, r_apnea.ans, 'DisplayName', 'Sat Referencia');
+yyaxis right
+plot(prueba1(1:end-1),SPO2-60,'DisplayName', 'SPO2');
+plot(r_norm.segundos_normal, r_norm.ans, 'DisplayName', 'Sat Referencia');
+plot(MaxsR.Time(1:end-1),SPO2-53,'DisplayName', 'SPO2');
+yyaxis right
 
 
 
