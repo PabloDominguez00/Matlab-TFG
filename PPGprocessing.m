@@ -173,7 +173,7 @@ grA=gA+remuestreado.Time(1); grB=gB+remuestreado.Time(1);
 
 clear k p z sos filterGain
 
-%% Prueba referencia verde para obtencion maximos rojo
+%% Prueba referencia infra para obtencion y corrección de los valores
 MaxRojo=zeros(size(rA)); MaxInfra=zeros(size(irA));
 MinRojo=zeros(size(rB)); MinInfra=zeros(size(irB));
 i=1;
