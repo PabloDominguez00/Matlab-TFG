@@ -7,7 +7,7 @@ addpath(genpath('C:\Users\Pablo\Desktop\Calculos\biomedical-signal-processing'))
 %cargaBio;
 
 %% carga y representacion de los datos
-filename = 'Paciente1';
+filename = 'Paciente0';
 crop = 10; %Cuantos minutos ignoraremos del inicio y el final
 signals = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename 'LH.gzip']);signals = signals(3:end,:);
 referencia = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename '_Pulso_SpO2.parquet']);
@@ -158,12 +158,12 @@ else
     
     fo=256;
 
-    t = crop*60:1/fo:signals.TimeTrial(end);
-    GC = interp1(signals.TimeTrial, double(signals.Green_Count), t,'pchip' );
-    RC = interp1(signals.TimeTrial, double(signals.Red_Count), t ,'pchip' );
-    IC = interp1(signals.TimeTrial, double(signals.IR_Count), t ,'pchip' );
+    Time = crop*60:1/fo:signals.TimeTrial(end);
+    GC = interp1(signals.TimeTrial, double(signals.Green_Count), Time,'pchip' );
+    RC = interp1(signals.TimeTrial, double(signals.Red_Count), Time ,'pchip' );
+    IC = interp1(signals.TimeTrial, double(signals.IR_Count), Time ,'pchip' );
 
-    resampled = table(t',GC,RC,IC, 'VariableNames', {'Time', 'GC', 'RC', 'IC'});
+    resampled = table(Time',GC',RC',IC', 'VariableNames', {'Time', 'GC', 'RC', 'IC'});
 end
 
 remuestreado=resampled;
@@ -331,7 +331,7 @@ for i = 2:length(MaxsIr.Value)
         lft = max(1, nearestIdx-windowSize);  % Índice inicial(>=1)
         rgt = min(length(noche.Time), nearestIdx+windowSize);  % Índice final (<= que el largo de la señal)
         % Encontrar el valor minimo en esa ventana porque estan en negativo
-        [~, max_index] = min(noche.IR(lft:rgt));
+        [~, max_index] = max(noche.IR(lft:rgt));
         %Max index devuelve un indice relativo al vector recibido, por
         %tanto, ya que el vector va [i-5,i+5], restamos tamañoVentana y le
         %sumamos el indice que ha encontrado en el subvector 
@@ -355,7 +355,7 @@ for i = 2:length(MaxsIr.Value)
         rgt = min(length(noche.Time), nearestIdx+windowSize);
         % Encontrar el valor maximo en esa ventana porque los valores son
         % negativos
-        [~, max_index] = max(noche.IR(lft:rgt));
+        [~, max_index] = min(noche.IR(lft:rgt));
         nearestIdx=lft + max_index;
         MinsIr.Time(i) = noche.Time(nearestIdx);
         MinsIr.Value(i) = noche.IR(nearestIdx);     
@@ -374,7 +374,7 @@ for i = 2:length(MaxsR.Value)
         nearestIdx = aux + nearestIdx;
         lft = max(1, nearestIdx-windowSize);
         rgt = min(length(noche.Time), nearestIdx+windowSize);
-        [~, max_index] = min(noche.Red(lft:rgt));
+        [~, max_index] = max(noche.Red(lft:rgt));
         nearestIdx=lft + max_index;
         MaxsR.Time(i) = noche.Time(nearestIdx);
         MaxsR.Value(i) = noche.Red(nearestIdx);     
@@ -393,7 +393,7 @@ for i = 2:length(MaxsR.Value)
         nearestIdx = aux + nearestIdx;
         lft = max(1, nearestIdx-windowSize);
         rgt = min(length(noche.Time), nearestIdx+windowSize);
-        [~, max_index] = max(noche.Red(lft:rgt));
+        [~, max_index] = min(noche.Red(lft:rgt));
         nearestIdx=lft + max_index;
         MinsR.Time(i) = noche.Time(nearestIdx);
         MinsR.Value(i) = noche.Red(nearestIdx);     
