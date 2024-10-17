@@ -272,42 +272,17 @@ figure
 hold on
 plot(remuestreado.Time, remuestreado.RC, 'DisplayName', 'Señal');
 yyaxis right
-plot(rA, zeros(height(MaxRojo),1)+2000, 'DisplayName', 'rA');
+plot(rA, 'DisplayName', 'rA');
 legend
+
+recorrer=min(length(rA), length(irA));
+rA=rA(1:recorrer);
+irA=irA(1:recorrer);
 
 i=1;
 umbral=0.1;
 %referencia irA
-while  i <= length(rA) && i <= length(irA)
-    inf=irA(i)-umbral;
-    sup=irA(i)+umbral;
-    [idx,]=find(rA(1:end)>inf & rA(1:end)<sup,1);
-    if ~isempty(idx)
-        MaxRojo(i)=rA(idx);
-        MaxInfra(i)=irA(i);
-    else
-        MaxRojo(i)=nan;
-        MaxInfra(i)=nan;
-    end
-    i=i+1;
-end
-
-figure
-hold on
-% plot(remuestreado.Time, remuestreado.RC, 'DisplayName', 'Señal');
-% yyaxis right
-plot(MaxRojo,zeros(height(MaxRojo),1)+2010, 'DisplayName', 'Recalculado');
-legend
-
-
-% figure
-% hold on
-% plot(rA, 'DisplayName', 'rA');
-% 
-% i=1;
-% umbral=0.1;
-% %referencia irA
-% while  i <= length(rA) && i <= length(irA)
+% while  i <= recorrer
 %     inf=irA(i)-umbral;
 %     sup=irA(i)+umbral;
 %     [idx,]=find(rA(1:end)>inf & rA(1:end)<sup,1);
@@ -320,19 +295,63 @@ legend
 %     end
 %     i=i+1;
 % end
-% 
-% plot(MaxRojo, 'DisplayName', 'Recalculado');
-% legend
+
+%Prueba referencia rA
+while  i <= recorrer
+    inf=rA(i)-umbral;
+    sup=rA(i)+umbral;
+    [idx,]=find(irA(1:end)>inf & irA(1:end)<sup,1);
+    if ~isempty(idx)
+        MaxRojo(i)=rA(i);
+        MaxInfra(i)=irA(idx);
+    else
+        MaxRojo(i)=nan;
+        MaxInfra(i)=nan;
+    end
+    i=i+1;
+end
+
+plot(MaxRojo, 'DisplayName', 'Recalculado');
+legend
+
+figure
+hold on
+% plot(remuestreado.Time, remuestreado.RC, 'DisplayName', 'Señal');
+% yyaxis right
+plot(MaxRojo, 'DisplayName', 'Recalculado');
+legend
+
+
+
+
+recorrer=min(length(rB), length(irB));
+rB=rB(1:recorrer);
+irB=irB(1:recorrer);
 
 i=1;
 %Referencia irB
-while i <= length(rB) && i <= length(irB)
-    inf=irB(i)-umbral;
-    sup=irB(i)+umbral;
-    [idx,]=find(rB(1:end)>inf & rB(1:end)<sup,1);
+% while i <= recorrer
+%     inf=irB(i)-umbral;
+%     sup=irB(i)+umbral;
+%     [idx,]=find(rB(1:end)>inf & rB(1:end)<sup,1);
+%     if ~isempty(idx)
+%         MinRojo(i)=rB(idx);
+%         MinInfra(i)=irB(i);
+%     else
+%         MinRojo(i)=nan;
+%         MinInfra(i)=nan;
+%     end
+%     i=i+1;
+% end
+
+%Referencia rB
+while i <= recorrer
+    inf=rB(i)-umbral;
+    sup=rB(i)+umbral;
+    [idx,]=find(irB(1:end)>inf & irB(1:end)<sup,1);
     if ~isempty(idx)
-        MinRojo(i)=rB(idx);
-        MinInfra(i)=irB(i);
+        MinRojo(i)=rB(i);
+        MinInfra(i)=irB(idx);
     else
         MinRojo(i)=nan;
         MinInfra(i)=nan;
@@ -340,23 +359,23 @@ while i <= length(rB) && i <= length(irB)
     i=i+1;
 end
 
-% Quitar 0 al final para dejar ambos indices del mismo tamaño
-last_nonzero_idx = find(MaxRojo ~= 0, 1, 'last');
-if ~isempty(last_nonzero_idx)
-    MaxRojo = MaxRojo(1:last_nonzero_idx);
-end
-last_nonzero_idx = find(MaxInfra ~= 0, 1, 'last');
-if ~isempty(last_nonzero_idx)
-    MaxInfra = MaxInfra(1:last_nonzero_idx);
-end
-last_nonzero_idx = find(MinRojo ~= 0, 1, 'last');
-if ~isempty(last_nonzero_idx)
-    MinRojo = MinRojo(1:last_nonzero_idx);
-end
-last_nonzero_idx = find(MinInfra ~= 0, 1, 'last');
-if ~isempty(last_nonzero_idx)
-    MinInfra = MinInfra(1:last_nonzero_idx);
-end
+% % Quitar 0 al final para dejar ambos indices del mismo tamaño
+% last_nonzero_idx = find(MaxRojo ~= 0, 1, 'last');
+% if ~isempty(last_nonzero_idx)
+%     MaxRojo = MaxRojo(1:last_nonzero_idx);
+% end
+% last_nonzero_idx = find(MaxInfra ~= 0, 1, 'last');
+% if ~isempty(last_nonzero_idx)
+%     MaxInfra = MaxInfra(1:last_nonzero_idx);
+% end
+% last_nonzero_idx = find(MinRojo ~= 0, 1, 'last');
+% if ~isempty(last_nonzero_idx)
+%     MinRojo = MinRojo(1:last_nonzero_idx);
+% end
+% last_nonzero_idx = find(MinInfra ~= 0, 1, 'last');
+% if ~isempty(last_nonzero_idx)
+%     MinInfra = MinInfra(1:last_nonzero_idx);
+% end
 
 irA=MaxInfra;rA=MaxRojo;irB=MinInfra;rB=MinRojo;
 
