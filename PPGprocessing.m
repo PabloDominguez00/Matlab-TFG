@@ -12,12 +12,12 @@ crop = 10; %Cuantos minutos ignoraremos del inicio y el final
 signals = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename 'LH.gzip']);signals = signals(3:end,:);
 referencia = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename '_Pulso_SpO2.parquet']);
 
-%Limpiamos puntos incoherentes (80<SPO2<100)
+%Limpiamos puntos incoherentes (60<SPO2<100)
 
 for i=1:length(referencia.Saturacion)
     if (referencia.Saturacion(i)> 100)
         referencia.Saturacion(i)=nan;
-    elseif (referencia.Saturacion(i) < 80)
+    elseif (referencia.Saturacion(i) < 60)
         referencia.Saturacion(i)=nan;
     end
 end
@@ -639,7 +639,7 @@ plot(MaxsR.Time(1:end-1),-aRFilt,'DisplayName', 'R apnea');
 % plot(crop*60:size(mediaLat)+crop*60-1, -mediaLat','DisplayName', 'R apnea');
 legend
 
-%% XCORR ORIGINAL
+%% Busqueda limites para alinear
 % realizamos el calculo de la media de saturación por seg
 k=1;
 condicion=1;
@@ -658,20 +658,15 @@ for i=2:floor(MinsR.Time(end-k)-crop*60)
     if any(ventana) 
             mediaLat=[mediaLat,mean(aRFilt(ventana))];
     else
-             mediaLat=[mediaLat,nan(1,1)];
+            mediaLat=[mediaLat,nan(1,1)];
     end
 end
 
 mediaLat=mediaLat';
+figure;boxplot(mediaLat);
 
 %Limites puestos a ojo
-if filename=="Paciente0"
-    for i=1:height(mediaLat)
-        if mediaLat(i)>-1.1 || mediaLat(i)<=-2.5
-            mediaLat(i)=nan;
-        end
-    end
-elseif filename=="Paciente1"
+if filename=="Paciente1"
     for i=1:height(mediaLat)
         if mediaLat(i)>-1.1 || mediaLat(i)<=-2.5
             mediaLat(i)=nan;
@@ -683,50 +678,94 @@ elseif filename=="Paciente3"
             mediaLat(i)=nan;
         end
     end
+elseif filename=="Paciente6"
+    for i=1:height(mediaLat)
+        if mediaLat(i)>-1.50 || mediaLat(i)<=-1.79
+            mediaLat(i)=nan;
+        end
+    end
+elseif filename=="Paciente7"
+    for i=1:height(mediaLat)
+        if mediaLat(i)>1.5 || mediaLat(i)<=-2.50
+            mediaLat(i)=nan;
+        end
+    end
+elseif filename=="Paciente9"
+    for i=1:height(mediaLat)
+        if mediaLat(i)>0.5 || mediaLat(i)<=-2
+            mediaLat(i)=nan;
+        end
+    end
+elseif filename=="Paciente10"
+    for i=1:height(mediaLat)
+        if mediaLat(i)>6 || mediaLat(i)<=-13
+            mediaLat(i)=nan;
+        end
+    end
+elseif filename=="Paciente11"
+    for i=1:height(mediaLat)
+        if mediaLat(i)>10|| mediaLat(i)<=-10
+            mediaLat(i)=nan;
+        end
+    end
 end
 mediaLat=fillmissing(mediaLat,'linear');
 
+
 nonanSatRef=fillmissing(ref_noche.referencia_noche,'linear');
-for i=1:height(nonanSatRef)
-    if nonanSatRef(i)<85
-        nonanSatRef(i)=nan;
+
+if filename=="Paciente1"
+    for i=1:height(nonanSatRef)
+        if nonanSatRef(i)<70
+            nonanSatRef(i)=nan;
+        end
+        if nonanSatRef(i)>100
+            nonanSatRef(i)=nan;
+        end
     end
-    if nonanSatRef(i)>100
-        nonanSatRef(i)=nan;
-    end
+    nonanSatRef=fillmissing(nonanSatRef,'linear');
 end
-nonanSatRef=fillmissing(nonanSatRef,'linear');
 
 
 [correl, lag] = xcorr(nonanSatRef, -mediaLat,6000);
-% figure
-% stem(lag,correl)
+figure
+stem(lag,correl)
 
 x=nonanSatRef;
 y=mediaLat;
 
 %Si el desplazamiento es positivo se realiza sobre el gráfico x, si es 
 % negativo sobre el gáfico y
-if filename=="Paciente0"
-    %Desplazamiento de 0    
-    delay = 1;
-    x=x(delay:end);
-    x=circshift(nonanSatRef ,-delay); nonanSatRef(end-delay:end) = [];
-elseif filename=="Paciente1"
-    delay = 88;
-    y=y(delay:end);
-    y=circshift(mediaLat ,-delay); y(end-delay:end) = [];
-
+if filename=="Paciente1"
+    delay = 88; %Añadir a calculada
+    padd = 0; %añadir a la referencia
 elseif filename=="Paciente3"
-    delay = 115;
-    y=y(delay:end);
-    y=circshift(mediaLat ,-delay); y(end-delay:end) = [];
+    delay = 0;
+    padd = 230;
+elseif filename=="Paciente6"
+    delay = 0;
+    padd = 0;
+elseif filename=="Paciente7"
+    delay = 0;
+    padd = 188;
+elseif filename=="Paciente9"
+    delay = 0;
+    padd = 880;
+elseif filename=="Paciente10"
+    delay = 0;
+    padd = 451;
+elseif filename=="Paciente11"
+    delay = 0;
+    padd = 200;
 end
+
+y = [zeros(delay,1)+mean(y);y];
+x = [zeros(padd,1)+mean(x);x];
 
 min_length = min(length(x),length(y));
 x=x(1:min_length);
 y=y(1:min_length);
- 
+
 nonanSatRef=x;
 mediaLat=y;
 
@@ -735,8 +774,13 @@ clear x y
 figure
 hold on
 plot(nonanSatRef);
+% plot(-y);
 yyaxis right
 plot(-mediaLat);
+
+
+%% CORRELACIÓN ORIGINAL Y CON MEDIANAS
+
     
 [R,p] = corrcoef(nonanSatRef,mediaLat)
 
@@ -757,12 +801,61 @@ c2= 8.333333;
 c3= 100;
 PseudoSPO2= c1*mediaLatMedFilt.^2+c2*mediaLatMedFilt+c3; 
 
-for i=1:height(PseudoSPO2)
-    if PseudoSPO2(i)<40
-        PseudoSPO2(i)=nan;
+figure;boxplot(PseudoSPO2);
+
+if filename=="Paciente1"
+    for i=1:height(PseudoSPO2)
+        if PseudoSPO2(i)<40
+            PseudoSPO2(i)=nan;
+        end
+        if PseudoSPO2(i)>70
+            PseudoSPO2(i)=nan;
+        end
     end
-    if PseudoSPO2(i)>70
-        PseudoSPO2(i)=nan;
+elseif filename=="Paciente3"
+    for i=1:height(PseudoSPO2)
+        if PseudoSPO2(i)<-52.5
+            PseudoSPO2(i)=nan;
+        end
+        if PseudoSPO2(i)>74
+            PseudoSPO2(i)=nan;
+        end
+    end
+elseif filename=="Paciente6"
+    for i=1:height(PseudoSPO2)
+        if PseudoSPO2(i)<32.5
+            PseudoSPO2(i)=nan;
+        end
+        if PseudoSPO2(i)>49.8
+            PseudoSPO2(i)=nan;
+        end
+    end
+elseif filename=="Paciente7"
+    for i=1:height(PseudoSPO2)
+        if PseudoSPO2(i)<10
+            PseudoSPO2(i)=nan;
+        end
+    end
+elseif filename=="Paciente9"
+    for i=1:height(PseudoSPO2)
+        if PseudoSPO2(i)<65
+            PseudoSPO2(i)=nan;
+        end
+        if PseudoSPO2(i)>96
+            PseudoSPO2(i)=nan;
+        end
+    end
+elseif filename=="Paciente10"
+    for i=1:height(PseudoSPO2)
+        if PseudoSPO2(i)<-1200
+            PseudoSPO2(i)=nan;
+        end
+    end
+elseif filename=="Paciente11"
+    for i=1:height(PseudoSPO2)
+        if PseudoSPO2(i)<0
+            PseudoSPO2(i)=nan;
+        end
     end
 end
 
@@ -775,7 +868,7 @@ figure
 plot(nonanSatRef);
 hold on
 yyaxis right 
-plot(round(PseudoSPO2Norm)+0.75);
+plot(PseudoSPO2Norm);
 
 size=min(height(nonanSatRef), height(PseudoSPO2Norm));
 
