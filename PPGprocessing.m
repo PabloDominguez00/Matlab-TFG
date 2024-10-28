@@ -737,8 +737,8 @@ y=mediaLat;
 %Si el desplazamiento es positivo se realiza sobre el gráfico x, si es 
 % negativo sobre el gáfico y
 if filename=="Paciente1"
-    delay = 88; %Añadir a calculada
-    padd = 0; %añadir a la referencia
+    delay = 0; %Añadir a calculada
+    padd = 88; %añadir a la referencia
 elseif filename=="Paciente3"
     delay = 0;
     padd = 230;
