@@ -6,8 +6,8 @@ clc
 addpath(genpath('C:\Users\Pablo\Desktop\Calculos\biomedical-signal-processing'));
 %cargaBio;
 
-%% carga y representacion de los datos
-filename = 'Paciente1';
+%% Carga y representacion de los datos
+filename = 'Paciente9';
 crop = 10; %Cuantos minutos ignoraremos del inicio y el final
 signals = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename 'LH.gzip']);signals = signals(3:end,:);
 referencia = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename '_Pulso_SpO2.parquet']);
@@ -30,7 +30,7 @@ signals=signals(sum(signals.TimeTrial<crop*60)+1:sum(signals.TimeTrial<signals.T
 
 clear i
 
-%% Resampled
+%% Resamplear
 fo=256;
 huecos = find(diff(signals.TimeTrial)>0.5);
 i=1;
@@ -61,9 +61,6 @@ if ~isempty(huecos)
     %frecuencia de muestreo tramos intermedios
     while i <= length(huecos)-1
         %Llenamos de nan todos los instantes de tiempo donde no hay datos
-        % n=(signals.TimeTrial(huecos(i)+1)-signals.TimeTrial(huecos(i)));
-        % n=floor(n*256);
-        % Time=nan(n,1);
         Time=signals.TimeTrial(huecos(i)):1/fo:signals.TimeTrial(huecos(i)+1);
         Time=Time';
         [n,~]=size(Time);
@@ -89,7 +86,6 @@ if ~isempty(huecos)
 
         %No la cumple, añadir nan a la tabla
         else
-            % Time=nan(length(signals.TimeTrial(huecos(i)+1:huecos(i+1))),1);
             Time=signals.TimeTrial(huecos(i)+1):1/fo:signals.TimeTrial(huecos(i+1));
             Time=Time';
             [n,~]=size(Time);
@@ -102,9 +98,6 @@ if ~isempty(huecos)
         i=i+1; 
     end
     %Llenamos de nan todos los instantes de tiempo donde no hay datos
-    % n=(signals.TimeTrial(huecos(i)+1)-signals.TimeTrial(huecos(i)));
-    % n=floor(n*256);
-    % Time=nan(n,1);
     Time=signals.TimeTrial(huecos(i)):1/fo:signals.TimeTrial(huecos(i)+1);
     Time=Time';
     [n,~]=size(Time);
@@ -113,7 +106,7 @@ if ~isempty(huecos)
     IC=nan(n,1);
     resampled = [resampled;table(Time,GC,RC,IC)];
 
-    if (height(signals)-huecos(i))-huecos(i)>120*256
+    if (height(signals)-huecos(i))>120*256%*
         g = signals.Green_Count(huecos(i)+1:end);
         r = signals.Red_Count(huecos(i)+1:end);
         ir = signals.IR_Count(huecos(i)+1:end);            
@@ -127,7 +120,6 @@ if ~isempty(huecos)
     
         resampled = [resampled;table(t',GC',RC',IC', 'VariableNames', {'Time', 'GC', 'RC', 'IC'})];
     else
-        %Time=nan(length(signals.TimeTrial(huecos(i)+1):end),1);
         Time=signals.TimeTrial(huecos(i)+1):1/fo:signals.TimeTrial(end);
         Time=Time';
         [n,~]=size(Time);
@@ -138,24 +130,7 @@ if ~isempty(huecos)
     end
 
 else 
-    %Un único tramo, todo es continuo, no hay que añadir nada
-
-    %Version antigua, borrar si funciona el codigo sin comentar
-    % fs=size(signals)/(signals.TimeTrial(end)-crop*60);
-    % fs=fs(1);
-    % 
-    % g = signals.Green_Count;
-    % r = signals.Red_Count;
-    % ir = signals.IR_Count;            
-    % 
-    % multiplicador = 100;
-    % GC = resample(double(g),fo*multiplicador,fix(round(fs*multiplicador,2)));
-    % RC = resample(double(r),fo*multiplicador,fix(round(fs*multiplicador,2)));
-    % IC = resample(double(ir),fo*multiplicador,fix(round(fs*multiplicador,2)));
-    % t = (0:length(GC)-1) / fo; %signals.TimeTrial(1):1/fo:length(RC)/fo-1/fo; 
-    % 
-    % clear g r ir fs
-    
+    %Un único tramo, todo es continuo, no hay que añadir nada 
     fo=256;
 
     Time = crop*60:1/fo:signals.TimeTrial(end);
@@ -207,7 +182,6 @@ Setup.plotflag = false;
 
 %Instantes de tiempo de: D->Latido, A->Max, B->Min 
 %(partiendo desde el instante de tiempo de medicion inicial)
-%Es decir, que son isntantes desde que inicia la tabla válida
 [ gD , gA , gB ]    =   pulseDelineation ( PPGGreen , fo , Setup );
 [ iD , iA , iB ]    =   pulseDelineation ( PPGIR , fo , Setup );
 [ nD , nA , nB ]    =   pulseDelineation ( PPGRed , fo , Setup ); 
@@ -216,12 +190,6 @@ Setup.plotflag = false;
 %creamos un eje temporal que se ajuste a nuestra señal
 t = 0:1/fo:(length(PPGRed)-1)/fo;
 
-% a_iA=iA; a_iB=iB; %para parte de apnea
-% a_nA=nA; a_nB=nB;
-% 
-% n_iA=iA; n_iB=iB; %para parte noche normal
-% n_nA=nA; n_nB=nB;  
-
 %Con tiempos arreglados:
 irA=iA+remuestreado.Time(1); irB=iB+remuestreado.Time(1);
 rA=nA+remuestreado.Time(1); rB=nB+remuestreado.Time(1);
@@ -229,15 +197,7 @@ grA=gA+remuestreado.Time(1); grB=gB+remuestreado.Time(1);
 
 clear k p z sos filterGain
 
-%% Referencia Infra para obtencion maximos rojo (PROBAR al reves a ver cual da mejores resultados)
-% recorrer=min(length(rA), length(irA));
-% rA=rA(1:recorrer);
-% irA=irA(1:recorrer);
-% 
-% recorrer=min(length(rB), length(irB));
-% rB=rB(1:recorrer);
-% irB=irB(1:recorrer);
-
+%% Referencia Infra para obtencion maximos rojo 
 MaxRojo=zeros(size(rA)); MaxInfra=zeros(size(irA));
 MinRojo=zeros(size(rB)); MinInfra=zeros(size(irB));
 
@@ -352,10 +312,7 @@ MinsIr=table(irB, nan(length(irB),1), 'VariableNames', {'Time', 'Value'});
 MaxsR=table(rA, nan(length(rA),1), 'VariableNames', {'Time', 'Value'});
 MinsR=table(rB, nan(length(rB),1), 'VariableNames', {'Time', 'Value'});
 
-%find(MaxsIr.Time<=noche.Time(1), 1); ??
-%clear nA nB iA iB
-
-%% Prueba reduccion de tiempos con busqueda knn:
+%% Obtención de valores con busqueda knn:
 
 windowSize=100;
 i=1;
@@ -442,82 +399,6 @@ for i = 2:length(MaxsR.Value)
 end
 toc
 
-
-%Version antigua
-%(Añadir una busqueda de maximos y minimos en torno al dato (ventana de +-5))
-% windowSize=5;
-% %PROBAR SI FUNCIONA EL TAMAÑO DE VENTANA
-% 
-% tic
-% %Maximos de IR
-% nearestIdx = knnsearch(noche.Time, MaxsIr.Time(1));
-% MaxsIr.Time(i) = noche.Time(nearestIdx);
-% MaxsIr.Value(i) = noche.IR(nearestIdx);
-% for i = 2:length(MaxsIr.Value)
-%     if ~isnan(MaxsIr.Time(i)) 
-%         aux = knnsearch(noche.Time(nearestIdx:nearestIdx+300), MaxsIr.Time(i));
-%         nearestIdx = aux + nearestIdx;
-%         % Asegurarse de que no salimos de los límites de la señal
-%         lft = max(1, nearestIdx-windowSize);  % Índice inicial(>=1)
-%         rgt = min(length(MaxsIr.Value), nearestIdx+windowSize);  % Índice final (<= que el largo de la señal)
-% 
-%         % Extraer la ventana de la señal
-%         window = noche.IR(lft:rgt);
-% 
-%         % Encontrar el valor máximo en esa ventana
-%         [max_value, max_index] = max(window);
-% 
-%         MaxsIr.Time(i) = noche.Time(nearestIdx);
-%         MaxsIr.Value(i) = noche.IR(nearestIdx);     
-%     end
-% end
-% toc
-% 
-% tic
-% % Mínimos de IR
-% nearestIdx = knnsearch(noche.Time, MinsIr.Time(1));
-% MinsIr.Time(i) = noche.Time(nearestIdx);
-% MinsIr.Value(i) = noche.IR(nearestIdx);
-% for i = 2:length(MaxsIr.Value)
-%     if ~isnan(MinsIr.Time(i)) 
-%         aux = knnsearch(noche.Time(nearestIdx:nearestIdx+300), MinsIr.Time(i));
-%         nearestIdx = aux + nearestIdx;
-%         MinsIr.Time(i) = noche.Time(nearestIdx);
-%         MinsIr.Value(i) = noche.IR(nearestIdx);     
-%     end
-% end
-% toc
-% 
-% tic
-% %Maximos de R
-% nearestIdx = knnsearch(noche.Time, MaxsR.Time(1));
-% MaxsR.Time(i) = noche.Time(nearestIdx);
-% MaxsR.Value(i) = noche.Red(nearestIdx);
-% for i = 2:length(MaxsR.Value)
-%     if ~isnan(MaxsR.Time(i)) 
-%         aux = knnsearch(noche.Time(nearestIdx:nearestIdx+300), MaxsR.Time(i));
-%         nearestIdx = aux + nearestIdx;
-%         MaxsR.Time(i) = noche.Time(nearestIdx);
-%         MaxsR.Value(i) = noche.Red(nearestIdx);     
-%     end
-% end
-% toc
-% 
-% tic
-% % Mínimos de R
-% nearestIdx = knnsearch(noche.Time, MinsR.Time(1));
-% MinsR.Time(i) = noche.Time(nearestIdx);
-% MinsR.Value(i) = noche.Red(nearestIdx);
-% for i = 2:length(MaxsR.Value)
-%     if ~isnan(MinsR.Time(i)) 
-%         aux = knnsearch(noche.Time(nearestIdx:nearestIdx+300), MinsR.Time(i));
-%         nearestIdx = aux + nearestIdx;
-%         MinsR.Time(i) = noche.Time(nearestIdx);
-%         MinsR.Value(i) = noche.Red(nearestIdx);     
-%     end
-% end
-% toc
-
 %% Dibujo de máximos y mínimos
 figure
 hold on
@@ -529,14 +410,12 @@ legend
 figure
 hold on
 plot(noche.Time,noche.Red, "k", 'DisplayName', 'RED');
-% plot(tn_nB+crop*60,zeros(height(tn_nB),1)+1, "og", 'DisplayName', 'tn_nB');
 plot(MaxsR.Time, MaxsR.Value, "r*", 'DisplayName', 'MAX');
 plot(MinsR.Time, MinsR.Value, "bo", 'DisplayName', 'MINS');
 legend
 
-%% Toda la noche (calculo de R y SPO2)
+%% Cálculo de R y SPO2
 
-%Revisar como podriasmos solucionar el tema de los latido totales:
 latidos=min(height(MaxsR),height(MaxsIr));
 %Declaramos por optimización
 red_dc=zeros(latidos-1,1);
@@ -566,10 +445,9 @@ for i=1:latidos-1
     b=(ir_ac(i)/ir_dc(i));
     c=a/b;
     aR(i)=c;
-    %j=j+1;
 end
 toc
-%% Toda la noche (calculo FFT y limpieza de la señal)
+%% Cálculo FFT y limpieza de la señal
 % fourierApn=fft(aR);
 % aL=length(aR);
 % 
@@ -578,7 +456,7 @@ toc
 % A1(2:end-1)= 2*A1(2:end-1);
 % fApn=fo/aL*(0:(aL/2));
 
-%En vistas de las graficas nos interesa establecer el corte en 15Hz, ya que
+%En vistas de las graficas nos interesa establecer el corte en 20Hz, ya que
 %es el punto suficientemente alejado como para no perder precisión, pero
 %suficientemente cercano para limpiar bien la señal.
 fc = 20/(fo/2); 
@@ -594,52 +472,22 @@ for i=1:length(SPO2)
     SPO2(i)=(110-aR(i));
 end
 
-%% Toda la noche (dibujo saturación con apnea)
-%Juntamos tiempo y saturación de una apnea
-% inicio_estudio=floor(noche.Time(1));
-% fin_estudio=ceil(noche.Time(end));
-% referencia_noche=referencia(1:end-1,1);
-% segundos = 1:1:length(referencia)-1;
-% segundos=segundos';
-% ref_noche=table(referencia_noche, segundos, 'VariableNames', {'referencia_noche', 'segundos'});
-
+%% Dibujo valores de R
 inicio_estudio=floor(noche.Time(1));
 fin_estudio=ceil(noche.Time(end));
-%referencia_noche=referencia(inicio_estudio:fin_estudio-1,1);
 referencia_noche=referencia(1:end);
 segundos = 1:1:length(referencia);
 segundos=segundos'+crop*60;
 ref_noche=table(referencia_noche, segundos, 'VariableNames', {'referencia_noche', 'segundos'});
-% figure
-% subplot(2,1,1)
-% hold on
-% plot(MaxsR.Time(1:end-5), red_dc,'DisplayName', 'Red DC'); %* revisar las longitudes
-% plot(MaxsR.Time(1:end-5), red_ac,'DisplayName', 'Red AC'); %*
-% plot(MaxsIr.Time(1:end-1), ir_dc,'DisplayName', 'Infra DC');
-% plot(MaxsIr.Time(1:end-1), ir_ac,'DisplayName', 'Infra AC');
-% title('Grafico apnea con respiración media 2')
-% legend
- 
-% prueba1=MaxsR.Time+31;
 
 figure
 hold on
 plot(ref_noche.segundos, ref_noche.referencia_noche, 'DisplayName', 'Sat Referencia');
 yyaxis right
-% plot(MaxsIr.Time,MaxsIr.Value,'DisplayName', 'SPO2');
-% plot(MaxsIr.Time,MaxsR.Value,'DisplayName', 'SPO2');
-% plot(MaxsIr.Time,MinsR.Value,'DisplayName', 'SPO2');
-% plot(MaxsIr.Time,MinsIr.Value,'DisplayName', 'SPO2');
-% plot(prueba1(1:end-1),SPO2','DisplayName', 'SPO2');
-%plot(MaxsR.Time(1:end-1),-aR,'DisplayName', 'R');
-% ylim([111 112])
-% plot(MaxsR.Time(1:end-1), MedSatCalc,'DisplayName', 'R apnea low-15');
 plot(MaxsR.Time(1:end-1),-aRFilt,'DisplayName', 'R apnea');
-% plot(crop*60:size(mediaLat)+crop*60-1, -mediaLat','DisplayName', 'R apnea');
-% plot(crop*60:size(mediaLat)+crop*60-1, -mediaLat','DisplayName', 'R apnea');
 legend
 
-%% Busqueda limites para alinear
+%% Busqueda valores con los que sincronizar
 % realizamos el calculo de la media de saturación por seg
 k=1;
 condicion=1;
@@ -663,12 +511,12 @@ for i=2:floor(MinsR.Time(end-k)-crop*60)
 end
 
 mediaLat=mediaLat';
-figure;boxplot(mediaLat);
-
+% figure;boxplot(mediaLat);
+ 
 %Limites puestos a ojo
 if filename=="Paciente1"
     for i=1:height(mediaLat)
-        if mediaLat(i)>-1.1 || mediaLat(i)<=-2.5
+        if mediaLat(i)>-1.1 || mediaLat(i)<=-2
             mediaLat(i)=nan;
         end
     end
@@ -680,7 +528,7 @@ elseif filename=="Paciente3"
     end
 elseif filename=="Paciente6"
     for i=1:height(mediaLat)
-        if mediaLat(i)>-1.50 || mediaLat(i)<=-1.79
+        if mediaLat(i)>1.5 || mediaLat(i)<=-3
             mediaLat(i)=nan;
         end
     end
@@ -709,9 +557,8 @@ elseif filename=="Paciente11"
         end
     end
 end
+
 mediaLat=fillmissing(mediaLat,'linear');
-
-
 nonanSatRef=fillmissing(ref_noche.referencia_noche,'linear');
 
 if filename=="Paciente1"
@@ -726,40 +573,30 @@ if filename=="Paciente1"
     nonanSatRef=fillmissing(nonanSatRef,'linear');
 end
 
-
 [correl, lag] = xcorr(nonanSatRef, -mediaLat,6000);
-figure
-stem(lag,correl)
+% figure
+% stem(lag,correl)
 
 x=nonanSatRef;
 y=mediaLat;
 
-%Si el desplazamiento es positivo se realiza sobre el gráfico x, si es 
-% negativo sobre el gáfico y
+%Añadidos para sincronizar las señales
 if filename=="Paciente1"
-    delay = 0; %Añadir a calculada
-    padd = 88; %añadir a la referencia
+    padd = 88; 
 elseif filename=="Paciente3"
-    delay = 0;
     padd = 230;
 elseif filename=="Paciente6"
-    delay = 0;
     padd = 0;
 elseif filename=="Paciente7"
-    delay = 0;
     padd = 188;
 elseif filename=="Paciente9"
-    delay = 0;
     padd = 880;
 elseif filename=="Paciente10"
-    delay = 0;
     padd = 451;
 elseif filename=="Paciente11"
-    delay = 0;
     padd = 200;
 end
 
-y = [zeros(delay,1)+mean(y);y];
 x = [zeros(padd,1)+mean(x);x];
 
 min_length = min(length(x),length(y));
@@ -771,104 +608,49 @@ mediaLat=y;
 
 clear x y
 
+%% Cambio signo mediaLat para ponerlo todo en orden
+mediaLat=-mediaLat;
+
+%% Dibujo de la señal sincronizada y cálculo de la correlación
+
 figure
 hold on
 plot(nonanSatRef);
-% plot(-y);
 yyaxis right
-plot(-mediaLat);
+plot(mediaLat);
 
-
-%% CORRELACIÓN ORIGINAL Y CON MEDIANAS
-
-    
 [R,p] = corrcoef(nonanSatRef,mediaLat)
 
+%% Aplicación del filtro de medianas
 mediaLatMedFilt=medfilt1(mediaLat,10);
 
 figure
 hold on
-plot(nonanSatRef);
+plot(nonanSatRef, 'DisplayName', 'Sat Referencia');
 yyaxis right
-plot(-mediaLatMedFilt);
-    
-[R,p] = corrcoef(nonanSatRef,mediaLatMedFilt)
+plot(mediaLatMedFilt, 'DisplayName', 'R apnea');
+legend
+
+% [R,p] = corrcoef(nonanSatRef,mediaLatMedFilt)
 
 
 %% Pseudo calculo del SPO2 con Latidos calculados con la mediana
 c1= -16.666666;
 c2= 8.333333;
 c3= 100;
-PseudoSPO2= c1*mediaLatMedFilt.^2+c2*mediaLatMedFilt+c3; 
-
-figure;boxplot(PseudoSPO2);
-
-if filename=="Paciente1"
-    for i=1:height(PseudoSPO2)
-        if PseudoSPO2(i)<40
-            PseudoSPO2(i)=nan;
-        end
-        if PseudoSPO2(i)>70
-            PseudoSPO2(i)=nan;
-        end
-    end
-elseif filename=="Paciente3"
-    for i=1:height(PseudoSPO2)
-        if PseudoSPO2(i)<-52.5
-            PseudoSPO2(i)=nan;
-        end
-        if PseudoSPO2(i)>74
-            PseudoSPO2(i)=nan;
-        end
-    end
-elseif filename=="Paciente6"
-    for i=1:height(PseudoSPO2)
-        if PseudoSPO2(i)<32.5
-            PseudoSPO2(i)=nan;
-        end
-        if PseudoSPO2(i)>49.8
-            PseudoSPO2(i)=nan;
-        end
-    end
-elseif filename=="Paciente7"
-    for i=1:height(PseudoSPO2)
-        if PseudoSPO2(i)<10
-            PseudoSPO2(i)=nan;
-        end
-    end
-elseif filename=="Paciente9"
-    for i=1:height(PseudoSPO2)
-        if PseudoSPO2(i)<65
-            PseudoSPO2(i)=nan;
-        end
-        if PseudoSPO2(i)>96
-            PseudoSPO2(i)=nan;
-        end
-    end
-elseif filename=="Paciente10"
-    for i=1:height(PseudoSPO2)
-        if PseudoSPO2(i)<-1200
-            PseudoSPO2(i)=nan;
-        end
-    end
-elseif filename=="Paciente11"
-    for i=1:height(PseudoSPO2)
-        if PseudoSPO2(i)<0
-            PseudoSPO2(i)=nan;
-        end
-    end
-end
-
-PseudoSPO2=fillmissing(-PseudoSPO2,'linear');
+pseudo=-mediaLatMedFilt;    %Devolvemos al valor original que es el  
+                            %esperado para realizar el cálculo
+PseudoSPO2= -(c1*pseudo.^2+c2*pseudo+c3); 
 
 PseudoSPO2Norm = (PseudoSPO2-min(PseudoSPO2))/(max(PseudoSPO2)-min(PseudoSPO2))*(max(nonanSatRef)-min(nonanSatRef));
-PseudoSPO2Norm = PseudoSPO2Norm-max(PseudoSPO2Norm)+max(nonanSatRef);
+PseudoSPO2Norm = PseudoSPO2Norm-max(PseudoSPO2Norm)+median(nonanSatRef);
 
 figure
-plot(nonanSatRef);
 hold on
+plot(nonanSatRef, 'DisplayName', 'Sat Referencia');
 yyaxis right 
-plot(PseudoSPO2Norm);
+plot(PseudoSPO2Norm, 'DisplayName', 'R apnea');
+legend
 
 size=min(height(nonanSatRef), height(PseudoSPO2Norm));
 
@@ -886,13 +668,13 @@ disp("REL: " + mean(errRel))
 LatNorm=(mediaLatMedFilt-min(mediaLatMedFilt))/(max(mediaLatMedFilt)-min(mediaLatMedFilt))*(max(nonanSatRef)-min(nonanSatRef));
 LatNorm=LatNorm+mean(nonanSatRef)-mean(LatNorm);
 
-errAbs = LatNorm(1:height(nonanSatRef))-nonanSatRef;
-disp("ABS: " + mean(abs(errAbs)))
-
-errRel = abs(errAbs)./nonanSatRef;
-disp("REL: " + mean(errRel))
-
-[R,p]=corrcoef(nonanSatRef, LatNorm(1:height(nonanSatRef)))
+% errAbs = LatNorm(1:height(nonanSatRef))-nonanSatRef;
+% disp("ABS: " + mean(abs(errAbs)))
+% 
+% errRel = abs(errAbs)./nonanSatRef;
+% disp("REL: " + mean(errRel))
+% 
+% [R,p]=corrcoef(nonanSatRef, LatNorm(1:height(nonanSatRef)))
 
 figure
 hold on
@@ -901,11 +683,13 @@ yyaxis right
 plot(LatNorm,'DisplayName', 'Media de latidos por segundo normalizada');
 legend
 
-%% FILTRADO DE LA NORMALIZACION
+%% Filtrado de la normalización
 fc=0.05;
 ord=1;
 [Bb,Ba] = butter(ord, fc/(1/2), 'low');
 FilteredCalc=filtfilt(Bb,Ba, LatNorm);
+
+[R,p]=corrcoef(nonanSatRef, FilteredCalc(1:height(nonanSatRef)))
 
 errAbs = FilteredCalc(1:height(nonanSatRef))-nonanSatRef;
 disp("ABS: " + mean(abs(errAbs)))
@@ -913,98 +697,8 @@ disp("ABS: " + mean(abs(errAbs)))
 errRel = abs(errAbs)./nonanSatRef;
 disp("REL: " + mean(errRel))
 
-[R,p]=corrcoef(nonanSatRef, FilteredCalc(1:height(nonanSatRef)))
-
 figure
 hold on
 plot(nonanSatRef, 'DisplayName', 'Sat Referencia');
-yyaxis right
 plot(FilteredCalc,'DisplayName', 'Media de latidos por segundo normalizada');
 legend
-
-%% PERCENTIL 5-95 con MediaLatMedFilt
-pctmediaLat = prctile(mediaLatMedFilt,[25 75]);
-
-LatNorm=(mediaLatMedFilt-min(mediaLatMedFilt))/(max(mediaLatMedFilt)-min(mediaLatMedFilt))*(max(nonanSatRef)-min(nonanSatRef));
-LatNorm=LatNorm+mean(nonanSatRef)-mean(LatNorm);
-
-LatNorm=(pctmediaLat-pctmediaLat(1))/(pctmediaLat(2)-pctmediaLat(1))*(max(nonanSatRef)-min(nonanSatRef));
-LatNorm=LatNorm+mean(nonanSatRef)-mean(LatNorm);
-
-errAbs = LatNorm(1:height(nonanSatRef))-nonanSatRef;
-disp("ABS: " + mean(abs(errAbs)))
-
-errRel = abs(errAbs)./nonanSatRef;
-disp("REL: " + mean(errRel))
-
-[R,p]=corrcoef(nonanSatRef, LatNorm(1:height(nonanSatRef)))
-
-figure
-hold on
-plot(nonanSatRef, 'DisplayName', 'Sat Referencia');
-yyaxis right
-plot(LatNorm,'DisplayName', 'Media de latidos por segundo normalizada');
-legend
-
-%% DTW test
-% Compute DTW alignment between the two sequences
-[dist, ix, iy] = dtw(nonanSatRef, -mediaLat);
-
-% ix and iy give the indices that match HR_A to HR_B
-aligned_A = nonanSatRef(ix);
-aligned_B = -mediaLat(iy);
-
-figure
-plot(aligned_A);
-hold on;
-yyaxis right
-plot(aligned_B);
-legend('Aligned REF', 'Aligned CALC-SAT');
-title('Aligned SAT TO REF');
-
-corrcoef(aligned_B, aligned_A)
-[A,p] = corrcoef(aligned_B, aligned_A)
-
-%¿APLICAR?
-% maxSat=max(ref_noche.referencia_noche);
-% maxR=max(-aRFilt);
-% newR=-(aRFilt)/maxR;
-% newSatRef=ref_noche.referencia_noche/maxSat;
-
-% [correlacion, lags] = xcorr(newR, newSatRef);
-% stem(lags,correlacion)
-
-%% Atenuacion de saturación de referencia
-for i=1:height(nonanSatRef)
-    if nonanSatRef(i)<85
-        nonanSatRef(i)=nan;
-    end
-    if nonanSatRef(i)>100
-        nonanSatRef(i)=nan;
-    end
-end
-nonanSatRef=fillmissing(nonanSatRef,'linear');
-
-fc=0.15;
-ord=1;
-
-[Bb,Ba] = butter(ord, fc/(1/2), 'low');
-FilteredRef=filtfilt(Bb,Ba, nonanSatRef);
-% for i=1:height(FilteredRef)
-%     FilteredRef(i)=round(FilteredRef(i));
-% end
-
-figure
-hold on
-plot(nonanSatRef, 'DisplayName', 'Señal Original');
-plot(FilteredRef,'DisplayName', 'Señal Filtrada');
-yyaxis right;
-plot(-y2,'DisplayName', 'SPO2 calculada mediana');
-legend;
-
-[A,p] = corrcoef(y2(1:height(FilteredRef)), FilteredRef)
-
-clear ord; Ba; Bb; t; 
-
-
-
