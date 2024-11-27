@@ -7,7 +7,7 @@ addpath(genpath('C:\Users\Pablo\Desktop\Calculos\biomedical-signal-processing'))
 %cargaBio;
 
 %% Carga y representacion de los datos
-filename = 'Paciente9';
+filename = 'Paciente7';
 crop = 10; %Cuantos minutos ignoraremos del inicio y el final
 signals = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename 'LH.gzip']);signals = signals(3:end,:);
 referencia = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename '_Pulso_SpO2.parquet']);
@@ -16,8 +16,6 @@ referencia = parquetread(['C:\Users\Pablo\Desktop\Calculos\' filename '_Pulso_Sp
 
 for i=1:length(referencia.Saturacion)
     if (referencia.Saturacion(i)> 100)
-        referencia.Saturacion(i)=nan;
-    elseif (referencia.Saturacion(i) < 60)
         referencia.Saturacion(i)=nan;
     end
 end
@@ -472,7 +470,7 @@ for i=1:length(SPO2)
     SPO2(i)=(110-aR(i));
 end
 
-%% Dibujo valores de R
+%% Dibujo valores de aR
 inicio_estudio=floor(noche.Time(1));
 fin_estudio=ceil(noche.Time(end));
 referencia_noche=referencia(1:end);
@@ -482,9 +480,13 @@ ref_noche=table(referencia_noche, segundos, 'VariableNames', {'referencia_noche'
 
 figure
 hold on
-plot(ref_noche.segundos, ref_noche.referencia_noche, 'DisplayName', 'Sat Referencia');
+plot(seconds(ref_noche.segundos), ref_noche.referencia_noche, 'DisplayName', 'Sat Referencia');
+ylabel('Oxygen Saturation (%)');
 yyaxis right
-plot(MaxsR.Time(1:end-1),-aRFilt,'DisplayName', 'R apnea');
+plot(seconds(MaxsR.Time(1:end-1)),-aRFilt,'DisplayName', 'aR apnea');
+ylabel('aR');
+xtickformat('hh:mm:ss')
+xlabel('Tiempo (hh:mm:ss)');
 legend
 
 %% Busqueda valores con los que sincronizar
@@ -613,11 +615,18 @@ mediaLat=-mediaLat;
 
 %% Dibujo de la señal sincronizada y cálculo de la correlación
 
+refTemporal=seconds(1:1:size(nonanSatRef));
+
 figure
 hold on
-plot(nonanSatRef);
+plot(refTemporal, nonanSatRef, 'DisplayName', 'Sat Referencia');
+ylabel('Oxygen Saturation (%)');
 yyaxis right
-plot(mediaLat);
+plot(refTemporal, mediaLat,'DisplayName', 'aR apnea');
+ylabel('aR');
+xtickformat('hh:mm:ss')
+xlabel('Tiempo (hh:mm:ss)');
+legend;
 
 [R,p] = corrcoef(nonanSatRef,mediaLat)
 
@@ -626,9 +635,13 @@ mediaLatMedFilt=medfilt1(mediaLat,10);
 
 figure
 hold on
-plot(nonanSatRef, 'DisplayName', 'Sat Referencia');
+plot(refTemporal, nonanSatRef, 'DisplayName', 'Sat Referencia');
+ylabel('Oxygen Saturation (%)');
 yyaxis right
-plot(mediaLatMedFilt, 'DisplayName', 'R apnea');
+plot(refTemporal, mediaLatMedFilt, 'DisplayName', 'aR apnea');
+ylabel('aR');
+xtickformat('hh:mm:ss')
+xlabel('Tiempo (hh:mm:ss)');
 legend
 
 % [R,p] = corrcoef(nonanSatRef,mediaLatMedFilt)
@@ -643,13 +656,21 @@ pseudo=-mediaLatMedFilt;    %Devolvemos al valor original que es el
 PseudoSPO2= -(c1*pseudo.^2+c2*pseudo+c3); 
 
 PseudoSPO2Norm = (PseudoSPO2-min(PseudoSPO2))/(max(PseudoSPO2)-min(PseudoSPO2))*(max(nonanSatRef)-min(nonanSatRef));
-PseudoSPO2Norm = PseudoSPO2Norm-max(PseudoSPO2Norm)+median(nonanSatRef);
+PseudoSPO2Norm = PseudoSPO2Norm-mean(PseudoSPO2Norm)+mean(nonanSatRef);
 
 figure
 hold on
-plot(nonanSatRef, 'DisplayName', 'Sat Referencia');
+plot(refTemporal, nonanSatRef, 'DisplayName', 'Referencia');
+ylabel('Oxygen Saturation (%)');
+ylim([86 100])
+yticks(86:1:100);
 yyaxis right 
-plot(PseudoSPO2Norm, 'DisplayName', 'R apnea');
+plot(refTemporal, PseudoSPO2Norm, 'DisplayName', 'Estimada');
+ylim([86 100])
+yticks(86:1:100);
+ylabel('Oxygen Saturation (%)');
+xtickformat('hh:mm:ss')
+xlabel('Tiempo (hh:mm:ss)');
 legend
 
 size=min(height(nonanSatRef), height(PseudoSPO2Norm));
@@ -678,9 +699,17 @@ LatNorm=LatNorm+mean(nonanSatRef)-mean(LatNorm);
 
 figure
 hold on
-plot(nonanSatRef, 'DisplayName', 'Sat Referencia');
+plot(refTemporal, nonanSatRef, 'DisplayName', 'Referencia');
+ylabel('Oxygen Saturation (%)');
+ylim([86 100])
+yticks(86:1:100);
 yyaxis right
-plot(LatNorm,'DisplayName', 'Media de latidos por segundo normalizada');
+plot(refTemporal, LatNorm,'DisplayName', 'Estimada');
+ylim([86 100])
+yticks(86:1:100);
+ylabel('Oxygen Saturation (%)');
+xtickformat('hh:mm:ss')
+xlabel('Tiempo (hh:mm:ss)');
 legend
 
 %% Filtrado de la normalización
@@ -699,6 +728,11 @@ disp("REL: " + mean(errRel))
 
 figure
 hold on
-plot(nonanSatRef, 'DisplayName', 'Sat Referencia');
-plot(FilteredCalc,'DisplayName', 'Media de latidos por segundo normalizada');
+plot(refTemporal, nonanSatRef, 'DisplayName', 'Referencia');
+ylabel('Oxygen Saturation (%)');
+ylim([82 100])
+yticks(82:1:100);
+plot(refTemporal, FilteredCalc,'DisplayName', 'Estimada');
+xtickformat('hh:mm:ss')
+xlabel('Tiempo (hh:mm:ss)');
 legend
